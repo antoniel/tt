@@ -1,4 +1,4 @@
-# TT (Tetê) — Terminal Tree Code Inspector & Call-Stack Hierarchy
+# TT (TonyTree) — Terminal Tree Code Inspector & Call-Stack Hierarchy
 ## Especificação Técnica de Implementação (One-Shot Agent Prompt & Architecture Spec)
 
 > **Documento de especificação para implementação completa em um único ciclo (one-shot prompt) para agentes de IA (Claude 3.7+, Cursor Agent, OpenCode, Codex, Aider).**
@@ -281,10 +281,10 @@ A tela é dividida utilizando o layout Yoga da `@opentui/core`:
 Abaixo está o texto exato formatado para ser entregue diretamente a qualquer agente de codificação.
 
 ````markdown
-# PROMPT DE IMPLEMENTAÇÃO ONE-SHOT: TT (TETÊ) - CODE TREE & CALL STACK INSPECTOR
+# PROMPT DE IMPLEMENTAÇÃO ONE-SHOT: TT (TonyTree) - CODE TREE & CALL STACK INSPECTOR
 
 Você é um engenheiro de software sênior especialista em ferramentas de terminal (TUIs), compiladores (ASTs) e ergonomia do Vim.
-Sua missão é implementar do início ao fim a ferramenta de terminal **`tt`** (Tetê) no repositório atual, utilizando **Bun**, **TypeScript**, **`@opentui/core`** e **`oxc-parser`**.
+Sua missão é implementar do início ao fim a ferramenta de terminal **`tt`** (TonyTree) no repositório atual, utilizando **Bun**, **TypeScript**, **`@opentui/core`** e **`oxc-parser`**.
 
 Não faça perguntas. Execute todas as etapas, crie os arquivos, instale as dependências e valide a execução com `bun test` e `bun run`.
 

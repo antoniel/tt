@@ -7,7 +7,7 @@ const firstArg = args[0];
 
 if (firstArg === "--help" || firstArg === "-h") {
   console.log(`
-\x1b[1;36mTT (Tetê)\x1b[0m — Code Inspector & Call Stack Hierarchy
+\x1b[1;36mTT (TonyTree)\x1b[0m — Code Inspector & Call Stack Hierarchy
 
 \x1b[1mUSO:\x1b[0m
   tt [arquivo ou diretório]

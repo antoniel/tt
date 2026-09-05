@@ -1,4 +1,4 @@
-# TT (Tetê) 🌳
+# TT (TonyTree) 🌳
 
 > **Interactive Terminal Code Inspector & Call-Flow Navigator with Vim Ergonomics.**  
 > Powered by **Bun**, **Rust (`oxc-parser`)**, **Effect-TS**, and **OpenTUI**.
