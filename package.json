@@ -1,12 +1,47 @@
 {
   "name": "tt",
-  "module": "index.ts",
+  "version": "0.1.0",
+  "description": "Terminal tree code inspector & call-stack hierarchy in Vim style",
+  "bin": {
+    "tt": "./bin/tt.ts"
+  },
+  "scripts": {
+    "start": "bun run ./bin/tt.ts",
+    "dev": "bun run ./bin/tt.ts",
+    "test": "bun test"
+  },
   "type": "module",
-  "private": true,
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "cli",
+    "tui",
+    "code-inspector",
+    "call-hierarchy",
+    "call-stack",
+    "ast",
+    "vim",
+    "effect-ts",
+    "bun",
+    "developer-tools"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "license": "MIT",
   "devDependencies": {
+    "@oxc-project/types": "^0.148.0",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.5.10",
+    "effect": "^3.22.1",
+    "oxc-parser": "^0.148.0"
   }
 }
