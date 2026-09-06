@@ -1,3 +1,5 @@
+import { markTrivialCalls } from "./trivial-calls.js";
+import { attachCallExpansion } from "./call-expansion.js";
 import { parseSync } from "oxc-parser";
 import type { AnalysisResult } from "../model/types.js";
 import { ParseError } from "../model/types.js";
@@ -45,7 +47,7 @@ export function parseAndAnalyzeSource(filePath: string, sourceCode: string): Ana
       extractor.tagToLayerMap
     );
 
-    return {
+    const analysis: AnalysisResult = {
       filePath,
       rootNodes,
       nodeMap: extractor.nodeMap,
@@ -54,6 +56,10 @@ export function parseAndAnalyzeSource(filePath: string, sourceCode: string): Ana
       stats,
       sourceCode,
     };
+    for (const node of analysis.nodeMap.values()) node.sourceFilePath = filePath;
+    markTrivialCalls(parseResult.program, analysis.nodeMap);
+    attachCallExpansion(analysis);
+    return analysis;
   } catch (err: any) {
     if (err instanceof ParseError) throw err;
     throw new ParseError({

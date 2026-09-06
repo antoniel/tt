@@ -2,6 +2,9 @@ import { createCliRenderer, BoxRenderable, TextRenderable } from "@opentui/core"
 import { Effect } from "effect";
 import type { TreeStateService } from "../services/TreeState.js";
 import { KeyHandlerState } from "../input/key-handler.js";
+import { getEditorLocation, openSourceInEditor } from "../services/SourceEditor.js";
+import { treeNodeAtRow } from "./tree-viewport.js";
+import type { TreeStateSnapshot } from "../services/TreeState.js";
 import { renderHeader } from "./components/Header.js";
 import { renderTreeView } from "./components/TreeView.js";
 import { renderStatusBar } from "./components/StatusBar.js";
@@ -17,6 +20,7 @@ export class TuiApp {
   public async run(): Promise<void> {
     const renderer = await createCliRenderer({
       exitOnCtrlC: false,
+      useMouse: true,
     });
 
     const root = renderer.root;
@@ -63,6 +67,10 @@ export class TuiApp {
     root.add(bodyBox);
     root.add(footerBox);
 
+    let renderedSnapshot: TreeStateSnapshot | null = null;
+    let renderedHeight = 0;
+    let openingEditor = false;
+
     const updateUI = async () => {
       const snapshot = await Effect.runPromise(this.treeState.getSnapshot());
       const width = renderer.width || process.stdout.columns || 80;
@@ -89,9 +97,34 @@ export class TuiApp {
 
       headerText.content = renderHeader(snapshot, width);
       treeText.content = renderTreeView(snapshot, treeWidth, bodyHeight);
+      renderedSnapshot = snapshot;
+      renderedHeight = bodyHeight;
       footerText.content = renderStatusBar(snapshot, width);
 
       renderer.requestRender();
+    };
+
+    treeText.onMouseDown = (event) => {
+      if (!event.modifiers.ctrl || event.button !== 0 || openingEditor || !renderedSnapshot) return;
+      const snapshot = renderedSnapshot;
+      const node = treeNodeAtRow(snapshot.visibleNodes, snapshot.selectedIndex, renderedHeight, event.y - treeText.y);
+      if (!node) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openingEditor = true;
+      void (async () => {
+        try {
+          const location = await getEditorLocation(snapshot.analysis, node);
+          if (!location) return;
+          await openSourceInEditor(location);
+          await Effect.runPromise(this.treeState.setStatusMessage(`Editor: ${location.filePath}:${location.line}`));
+        } catch (error) {
+          await Effect.runPromise(this.treeState.setStatusMessage(`Não foi possível abrir o editor: ${error instanceof Error ? error.message : String(error)}. Configure TT_EDITOR=code ou TT_EDITOR=cursor.`));
+        } finally {
+          openingEditor = false;
+          if (!renderer.isDestroyed) await updateUI();
+        }
+      })();
     };
 
     // Initial render

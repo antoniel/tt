@@ -103,6 +103,7 @@ All code starts **recursively closed**. You unfold only what you want to explore
 
 | Key | Action |
 |:---:|:---|
+| `zt` | **Toggle trivial calls:** Hidden by default; show all calls without changing the analysis |
 | `zo` | **Open fold (1 level):** Reveals immediate children (kept closed) |
 | `zO` | **Open recursively:** Unfolds current node and all nested descendants |
 | `zc` | **Close fold (recursive):** Collapses current node and all descendants |
@@ -196,3 +197,27 @@ bun dev src/index.ts
 ## 📄 License
 
 [MIT](LICENSE) © 2026 Antoniel & contributors.
+
+### Trivial call filtering
+
+The hierarchy hides an explicit allowlist of primitive operations by default: common
+`Math` calculations, scalar conversions, numeric checks, `Array.isArray`, and
+`Object.keys/values/entries/hasOwn`. String and collection read methods are hidden
+only with syntax evidence of the receiver type (literals, unique constant bindings,
+or primitive string/array annotations). Unknown receivers stay visible.
+
+Local definitions, imports, shadowed globals, callbacks, mutations, I/O,
+`JSON.parse`, `Math.random`, and `Date.now` remain visible. Relevant calls inside a
+hidden operation are promoted visually to its parent; their source locations and
+navigation remain intact. Press `zt` to show every call or restore the filter.
+
+### Open source in your editor
+
+**Ctrl + left click** on a tree row opens its resolved function declaration in
+VS Code. Other code rows open at their own source line, including bodies expanded
+from another file. Scrolling and trivial-call filtering are taken into account.
+
+The `code` command must be on your PATH. For Cursor, launch with
+`TT_EDITOR=cursor tt path/to/file.ts`. `TT_EDITOR` accepts an executable name or
+path for an editor supporting `--goto file:line:column` (no shell arguments).
+The terminal must forward Ctrl+mouse events to the application.

@@ -1,3 +1,4 @@
+import { treeViewportOffset } from "../tree-viewport.js";
 import type { TreeStateSnapshot } from "../../services/TreeState.js";
 import { StyledText, type TextChunk } from "@opentui/core";
 import { chunk, joinLines } from "../styled.js";
@@ -77,10 +78,7 @@ export function renderTreeView(
 
   // Calculate viewport scroll offset
   const selectedIdx = snapshot.selectedIndex;
-  let offset = Math.max(0, selectedIdx - Math.floor(height / 2));
-  if (offset + height > visible.length) {
-    offset = Math.max(0, visible.length - height);
-  }
+  const offset = treeViewportOffset(visible.length, selectedIdx, height);
 
   const lines: TextChunk[][] = [];
   const endIdx = Math.min(offset + height, visible.length);
@@ -91,7 +89,15 @@ export function renderTreeView(
     const lineBg = isSelected ? "#313244" : undefined;
 
     // Indentation: 2 spaces per depth level beyond 1
-    const indentLevel = Math.max(0, node.depth - 1);
+    let hiddenAncestors = 0;
+    let parentId = node.parentId;
+    while (parentId && !snapshot.showTrivialCalls) {
+      const parent = snapshot.analysis.nodeMap.get(parentId);
+      if (!parent) break;
+      if (parent.isTrivialCall) hiddenAncestors++;
+      parentId = parent.parentId;
+    }
+    const indentLevel = Math.max(0, node.depth - 1 - hiddenAncestors);
     const indentStr = "  ".repeat(indentLevel);
 
     // Cursor Marker
@@ -105,7 +111,7 @@ export function renderTreeView(
     // Fold icon
     let foldStr = "• ";
     let foldFg = "#6c7086";
-    if (node.children.length > 0) {
+    if ((node.children.length > 0 || !!node.expandChildren)) {
       if (node.isFolded) {
         foldStr = "▶ ";
         foldFg = "#f9e2af";
@@ -116,7 +122,7 @@ export function renderTreeView(
     }
     const foldChunk = chunk(foldStr, {
       fg: foldFg,
-      bold: node.children.length > 0,
+      bold: (node.children.length > 0 || !!node.expandChildren),
       bg: lineBg,
     });
 
@@ -179,7 +185,7 @@ export function renderTreeView(
 
     const maxAvailable = Math.max(8, width - prefixLen - suffixLen - minPadding);
 
-    let displayLabel = `${node.label}${extraFileStr}`.replace(/\s+/g, " ");
+    let displayLabel = `${node.label}${node.expansionNote ? ` [${node.expansionNote}]` : ""}${extraFileStr}`.replace(/\s+/g, " ");
     if (displayLabel.length > maxAvailable) {
       displayLabel = `${displayLabel.slice(0, maxAvailable - 3)}...`;
     }

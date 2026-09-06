@@ -10,6 +10,19 @@ import { KeyHandlerState } from "../src/input/key-handler.js";
 import { KeyEvent } from "@opentui/core";
 
 describe("AST Extractor & Symbol Resolver", () => {
+  test("preserves calls in nested object and array destructuring declarations", () => {
+    const result = parseAndAnalyzeSource("destructuring.ts", `
+      function render() {
+        const { bb, metadata: meta } = collectPage(root);
+        const [first, ...rest] = collectItems(root);
+      }
+    `);
+
+    const render = result.rootNodes.find((node) => node.symbolName === "render")!;
+    expect(render.children.filter((node) => node.kind === "call").map((node) => node.callTarget))
+      .toEqual(["collectPage", "collectItems"]);
+  });
+
   const samplePath = "test/fixtures/sample.ts";
   const sourceCode = Bun.file(samplePath).text();
 
@@ -187,7 +200,7 @@ describe("Fold Engine", () => {
     const result = parseAndAnalyzeSource(samplePath, code);
 
     FoldEngine.unfoldAllRecursively(result.rootNodes);
-    const visibleAll = FoldEngine.getVisibleNodes(result.rootNodes);
+    const visibleAll = FoldEngine.getVisibleNodes(result.rootNodes, true);
     expect(visibleAll.length).toBe(result.nodeMap.size);
 
     FoldEngine.foldAllRecursively(result.rootNodes);
@@ -306,7 +319,7 @@ describe("Effect Services & Key Handler", () => {
 
       yield* treeState.unfoldAllRecursively();
       snapshot = yield* treeState.getSnapshot();
-      expect(snapshot.visibleNodes.length).toBe(res.nodeMap.size);
+      expect(snapshot.visibleNodes.length).toBe([...res.nodeMap.values()].filter(n => !n.isTrivialCall).length);
 
       yield* treeState.foldLevel(1);
       snapshot = yield* treeState.getSnapshot();

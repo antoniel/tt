@@ -13,6 +13,7 @@ export type ViewMode = "hierarchy" | "dependents" | "references" | "explorer";
 
 export interface TreeStateSnapshot {
   readonly analysis: AnalysisResult;
+  readonly showTrivialCalls: boolean;
   readonly visibleNodes: TreeNode[];
   readonly selectedIndex: number;
   readonly selectedNode: TreeNode | null;
@@ -29,6 +30,7 @@ export interface TreeStateSnapshot {
 }
 
 export interface TreeStateService {
+  readonly toggleTrivialCalls: () => Effect.Effect<void>;
   readonly init: (analysis: AnalysisResult) => Effect.Effect<void>;
   readonly moveUp: () => Effect.Effect<void>;
   readonly moveDown: () => Effect.Effect<void>;
@@ -98,7 +100,7 @@ export const TreeStateLive = Layer.effect(
       if (!state.analysis) {
         throw new Error("TreeState not initialized");
       }
-      const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+      const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
       const selectedNode = state.navigation.getSelectedNode(visible);
 
       const relativeFilePath = relative(process.cwd(), state.analysis.filePath);
@@ -137,6 +139,7 @@ export const TreeStateLive = Layer.effect(
       return {
         analysis: state.analysis,
         visibleNodes: visible,
+        showTrivialCalls: state.navigation.showTrivialCalls,
         selectedIndex: state.navigation.selectedIndex,
         selectedNode,
         statusMessage: state.statusMessage,
@@ -153,6 +156,23 @@ export const TreeStateLive = Layer.effect(
     });
 
     return {
+      toggleTrivialCalls: () => Effect.gen(function* () {
+        const state = yield* Ref.get(stateRef);
+        if (!state.analysis) return;
+        const nav = state.navigation;
+        const selected = nav.getSelectedNode(nav.getVisibleNodes(state.analysis.rootNodes));
+        nav.showTrivialCalls = !nav.showTrivialCalls;
+        if (selected && nav.showTrivialCalls) FoldEngine.ensureVisible(selected, state.analysis.nodeMap);
+        const visible = nav.getVisibleNodes(state.analysis.rootNodes);
+        let target = selected;
+        let index = target ? visible.findIndex(n => n.id === target!.id) : -1;
+        while (index < 0 && target?.parentId) {
+          target = state.analysis.nodeMap.get(target.parentId) || null;
+          index = target ? visible.findIndex(n => n.id === target!.id) : -1;
+        }
+        nav.selectedIndex = index >= 0 ? index : Math.max(0, Math.min(nav.selectedIndex, visible.length - 1));
+        state.statusMessage = nav.showTrivialCalls ? "Chamadas triviais visíveis [zt para ocultar]" : "Chamadas triviais ocultas [zt para mostrar]";
+      }),
       init: (analysis: AnalysisResult) => {
         const isExplorer = analysis.rootNodes.some(
           (n) => n.kind === "directory" || n.kind === "file"
@@ -177,7 +197,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           state.navigation.moveUp(visible);
         }),
 
@@ -185,7 +205,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           state.navigation.moveDown(visible);
         }),
 
@@ -199,7 +219,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           state.navigation.moveToBottom(visible);
         }),
 
@@ -207,7 +227,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (!current) return;
 
@@ -222,7 +242,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (!current) return;
 
@@ -259,7 +279,7 @@ export const TreeStateLive = Layer.effect(
             }
           }
 
-          if (current.children.length > 0 && current.isFolded) {
+          if ((current.children.length > 0 || current.expandChildren) && current.isFolded) {
             FoldEngine.openFold(current);
           } else if (current.children.length > 0) {
             state.navigation.moveToFirstChild(visible);
@@ -270,7 +290,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return false;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (!current) return false;
 
@@ -316,6 +336,11 @@ export const TreeStateLive = Layer.effect(
             }
           }
 
+          if (current.callTarget && (current.children.length > 0 || current.expandChildren)) {
+            FoldEngine.toggleFold(current);
+            return true;
+          }
+
           // If it's a node pointing to a definition file and line (e.g., in Dependents or References mode)
           if (current.definitionFilePath && current.definitionLine) {
             const targetFilePath = current.definitionFilePath;
@@ -348,7 +373,7 @@ export const TreeStateLive = Layer.effect(
               if (targetNode) {
                 FoldEngine.ensureVisible(targetNode, fileAnalysis.nodeMap);
               }
-              const targetVisible = FoldEngine.getVisibleNodes(fileAnalysis.rootNodes);
+              const targetVisible = state.navigation.getVisibleNodes(fileAnalysis.rootNodes);
               const targetIdx = targetNode
                 ? targetVisible.findIndex((n) => n.id === targetNode.id)
                 : 0;
@@ -415,7 +440,7 @@ export const TreeStateLive = Layer.effect(
             ...s,
             hierarchyAnalysis: s.hierarchyAnalysis || s.analysis,
             analysis: dependentsAnalysis,
-            navigation: new NavigationState(0),
+            navigation: new NavigationState(0, s.navigation.showTrivialCalls),
             viewMode: "dependents",
             targetSymbol: null,
             statusMessage: `↳ [Shift+Tab] Mostrando arquivos dependentes de ${relative(process.cwd(), targetFile)} • [Shift+Tab para voltar]`,
@@ -428,7 +453,7 @@ export const TreeStateLive = Layer.effect(
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return false;
 
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (!current) return false;
 
@@ -449,7 +474,7 @@ export const TreeStateLive = Layer.effect(
             ...s,
             hierarchyAnalysis: s.hierarchyAnalysis || s.analysis,
             analysis: refAnalysis,
-            navigation: new NavigationState(0),
+            navigation: new NavigationState(0, s.navigation.showTrivialCalls),
             viewMode: "references",
             targetSymbol: symbol,
             statusMessage: `↳ [gr] Referências de "${symbol}" no projeto todo • [^O para voltar]`,
@@ -461,7 +486,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (current) {
             FoldEngine.openFold(current);
@@ -472,7 +497,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (current) {
             FoldEngine.openFoldRecursively(current);
@@ -483,7 +508,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (current) {
             FoldEngine.closeFold(current, true);
@@ -494,7 +519,7 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
           if (current) {
             FoldEngine.toggleFold(current);
@@ -541,13 +566,13 @@ export const TreeStateLive = Layer.effect(
         Effect.gen(function* () {
           const state = yield* Ref.get(stateRef);
           if (!state.analysis) return false;
-          const visible = FoldEngine.getVisibleNodes(state.analysis.rootNodes);
+          const visible = state.navigation.getVisibleNodes(state.analysis.rootNodes);
           const current = state.navigation.getSelectedNode(visible);
 
           if (!current) return false;
 
           // 1. Same-file definition
-          if (current.definitionNodeId) {
+          if (current.definitionNodeId && (!current.definitionFilePath || current.definitionFilePath === state.analysis.filePath)) {
             const targetNode = state.analysis.nodeMap.get(current.definitionNodeId);
             if (targetNode) {
               const jumped = state.navigation.jumpToNode(
@@ -623,7 +648,7 @@ export const TreeStateLive = Layer.effect(
               }
             }
 
-            const targetVisible = FoldEngine.getVisibleNodes(targetAnalysis.rootNodes);
+            const targetVisible = state.navigation.getVisibleNodes(targetAnalysis.rootNodes);
             const targetIdx = targetNode
               ? targetVisible.findIndex((n) => n.id === targetNode.id)
               : 0;
@@ -672,7 +697,7 @@ export const TreeStateLive = Layer.effect(
           // Cross-file jump back
           if (prev.filePath && prev.filePath !== state.analysis.filePath) {
             const current = state.navigation.getSelectedNode(
-              FoldEngine.getVisibleNodes(state.analysis.rootNodes)
+              state.navigation.getVisibleNodes(state.analysis.rootNodes)
             );
             if (current) {
               state.navigation.pushForwardJump({
@@ -692,7 +717,7 @@ export const TreeStateLive = Layer.effect(
               if (targetNode) {
                 FoldEngine.ensureVisible(targetNode, prevAnalysis.nodeMap);
               }
-              const prevVisible = FoldEngine.getVisibleNodes(prevAnalysis.rootNodes);
+              const prevVisible = state.navigation.getVisibleNodes(prevAnalysis.rootNodes);
               const targetIdx = targetNode
                 ? prevVisible.findIndex((n) => n.id === targetNode.id)
                 : prev.index;
@@ -720,7 +745,7 @@ export const TreeStateLive = Layer.effect(
               if (targetNode) {
                 FoldEngine.ensureVisible(targetNode, prevAnalysis.nodeMap);
               }
-              const prevVisible = FoldEngine.getVisibleNodes(prevAnalysis.rootNodes);
+              const prevVisible = state.navigation.getVisibleNodes(prevAnalysis.rootNodes);
               const targetIdx = targetNode
                 ? prevVisible.findIndex((n) => n.id === targetNode.id)
                 : prev.index;
@@ -771,7 +796,7 @@ export const TreeStateLive = Layer.effect(
           // Cross-file jump forward
           if (next.filePath && next.filePath !== state.analysis.filePath) {
             const current = state.navigation.getSelectedNode(
-              FoldEngine.getVisibleNodes(state.analysis.rootNodes)
+              state.navigation.getVisibleNodes(state.analysis.rootNodes)
             );
             if (current) {
               state.navigation.jumpHistory.push({
@@ -791,7 +816,7 @@ export const TreeStateLive = Layer.effect(
               if (targetNode) {
                 FoldEngine.ensureVisible(targetNode, nextAnalysis.nodeMap);
               }
-              const nextVisible = FoldEngine.getVisibleNodes(nextAnalysis.rootNodes);
+              const nextVisible = state.navigation.getVisibleNodes(nextAnalysis.rootNodes);
               const targetIdx = targetNode
                 ? nextVisible.findIndex((n) => n.id === targetNode.id)
                 : next.index;
@@ -819,7 +844,7 @@ export const TreeStateLive = Layer.effect(
               if (targetNode) {
                 FoldEngine.ensureVisible(targetNode, nextAnalysis.nodeMap);
               }
-              const nextVisible = FoldEngine.getVisibleNodes(nextAnalysis.rootNodes);
+              const nextVisible = state.navigation.getVisibleNodes(nextAnalysis.rootNodes);
               const targetIdx = targetNode
                 ? nextVisible.findIndex((n) => n.id === targetNode.id)
                 : next.index;
@@ -846,7 +871,7 @@ export const TreeStateLive = Layer.effect(
           );
           if (jumped) {
             const current = state.navigation.getSelectedNode(
-              FoldEngine.getVisibleNodes(state.analysis.rootNodes)
+              state.navigation.getVisibleNodes(state.analysis.rootNodes)
             );
             const lineStr = current ? ` (L${current.location.startLine})` : "";
             yield* Ref.update(stateRef, (s) => ({

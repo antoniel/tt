@@ -5,12 +5,13 @@ export class FoldEngine {
    * Returns a flat array of nodes that are currently visible
    * (i.e. whose parent/ancestors are not folded).
    */
-  public static getVisibleNodes(rootNodes: readonly TreeNode[]): TreeNode[] {
+  public static getVisibleNodes(rootNodes: readonly TreeNode[], showTrivialCalls = false): TreeNode[] {
     const visible: TreeNode[] = [];
 
     function traverse(node: TreeNode) {
-      visible.push(node);
-      if (!node.isFolded && node.children.length > 0) {
+      const hidden = node.isTrivialCall && !showTrivialCalls;
+      if (!hidden) visible.push(node);
+      if ((hidden || !node.isFolded) && node.children.length > 0) {
         for (const child of node.children) {
           traverse(child);
         }
@@ -28,6 +29,7 @@ export class FoldEngine {
    * Opens the fold of the specified node.
    */
   public static openFold(node: TreeNode): boolean {
+    node.expandChildren?.();
     if (node.children.length > 0 && node.isFolded) {
       node.isFolded = false;
       return true;
@@ -39,10 +41,11 @@ export class FoldEngine {
    * Opens the fold of the specified node and all its descendants recursively.
    */
   public static openFoldRecursively(node: TreeNode): boolean {
+    node.expandChildren?.();
     if (node.children.length > 0) {
       node.isFolded = false;
       for (const child of node.children) {
-        if (child.children.length > 0) {
+        if (child.children.length > 0 || child.expandChildren) {
           this.openFoldRecursively(child);
         }
       }
@@ -57,7 +60,7 @@ export class FoldEngine {
    * so reopening this node presents a clean, folded hierarchy.
    */
   public static closeFold(node: TreeNode, recursively = true): boolean {
-    if (node.children.length > 0) {
+    if (node.children.length > 0 || node.expandChildren) {
       const changed = !node.isFolded;
       node.isFolded = true;
       if (recursively) {
@@ -70,7 +73,7 @@ export class FoldEngine {
 
   public static foldDescendants(node: TreeNode): void {
     for (const child of node.children) {
-      if (child.children.length > 0) {
+      if (child.children.length > 0 || child.expandChildren) {
         child.isFolded = true;
         this.foldDescendants(child);
       }
@@ -82,7 +85,8 @@ export class FoldEngine {
    * When closing, closes recursively.
    */
   public static toggleFold(node: TreeNode): boolean {
-    if (node.children.length > 0) {
+    node.expandChildren?.();
+    if (node.children.length > 0 || node.expandChildren) {
       if (node.isFolded) {
         node.isFolded = false;
       } else {
@@ -98,7 +102,7 @@ export class FoldEngine {
    */
   public static foldAllRecursively(rootNodes: readonly TreeNode[]): void {
     function traverse(node: TreeNode) {
-      if (node.children.length > 0) {
+      if (node.children.length > 0 || node.expandChildren) {
         node.isFolded = true;
         for (const child of node.children) {
           traverse(child);
@@ -116,6 +120,7 @@ export class FoldEngine {
    */
   public static unfoldAllRecursively(rootNodes: readonly TreeNode[]): void {
     function traverse(node: TreeNode) {
+      node.expandChildren?.();
       node.isFolded = false;
       for (const child of node.children) {
         traverse(child);
@@ -135,12 +140,13 @@ export class FoldEngine {
   public static foldLevel(rootNodes: readonly TreeNode[], targetLevel: number): void {
     function traverse(node: TreeNode) {
       if (node.depth < targetLevel) {
+        node.expandChildren?.();
         node.isFolded = false;
         for (const child of node.children) {
           traverse(child);
         }
       } else if (node.depth === targetLevel) {
-        if (node.children.length > 0) {
+        if (node.children.length > 0 || node.expandChildren) {
           node.isFolded = true;
         }
       }

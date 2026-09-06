@@ -13,6 +13,7 @@ export type KeyAction =
   | "openFold"
   | "openFoldRecursively"
   | "closeFold"
+  | "toggleTrivialCalls"
   | "toggleFold"
   | "foldAllRecursively"
   | "unfoldAllRecursively"
@@ -106,6 +107,7 @@ export class KeyHandlerState {
       if (name === "o") return "openFold";
       if (name === "O" || (shift && (name === "o" || name === "O"))) return "openFoldRecursively";
       if (name === "c" || name === "C") return "closeFold";
+      if (name === "t") return "toggleTrivialCalls";
       if (name === "a" || name === "A") return "toggleFold";
       if (name === "M" || (shift && name === "m")) return "foldAllRecursively";
       if (name === "R" || (shift && name === "r")) return "unfoldAllRecursively";
@@ -176,6 +178,8 @@ export class KeyHandlerState {
         return Effect.as(treeState.openFoldRecursively(), false);
       case "closeFold":
         return Effect.as(treeState.closeFold(), false);
+      case "toggleTrivialCalls":
+        return Effect.as(treeState.toggleTrivialCalls(), false);
       case "toggleFold":
         return Effect.as(treeState.toggleFold(), false);
       case "foldAllRecursively":

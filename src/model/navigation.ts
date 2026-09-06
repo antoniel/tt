@@ -6,8 +6,12 @@ export class NavigationState {
   public jumpHistory: JumpPosition[] = [];
   public jumpForwardHistory: JumpPosition[] = [];
 
-  constructor(initialIndex = 0) {
+  constructor(initialIndex = 0, public showTrivialCalls = false) {
     this.selectedIndex = initialIndex;
+  }
+
+  public getVisibleNodes(rootNodes: readonly TreeNode[]): TreeNode[] {
+    return FoldEngine.getVisibleNodes(rootNodes, this.showTrivialCalls);
   }
 
   public getSelectedNode(visibleNodes: readonly TreeNode[]): TreeNode | null {
@@ -46,7 +50,7 @@ export class NavigationState {
     rootNodes: readonly TreeNode[],
     currentFilePath = ""
   ): boolean {
-    const currentNode = this.getSelectedNode(FoldEngine.getVisibleNodes(rootNodes));
+    const currentNode = this.getSelectedNode(this.getVisibleNodes(rootNodes));
     if (currentNode) {
       this.jumpHistory.push({
         filePath: currentFilePath,
@@ -60,7 +64,7 @@ export class NavigationState {
     FoldEngine.ensureVisible(targetNode, nodeMap);
 
     // Find target in visible nodes
-    const updatedVisible = FoldEngine.getVisibleNodes(rootNodes);
+    const updatedVisible = this.getVisibleNodes(rootNodes);
     const targetIdx = updatedVisible.findIndex((n) => n.id === targetNode.id);
     if (targetIdx !== -1) {
       this.selectedIndex = targetIdx;
@@ -98,7 +102,7 @@ export class NavigationState {
     const prev = this.jumpHistory.pop();
     if (!prev) return false;
 
-    const currentNode = this.getSelectedNode(FoldEngine.getVisibleNodes(rootNodes));
+    const currentNode = this.getSelectedNode(this.getVisibleNodes(rootNodes));
     if (currentNode) {
       this.jumpForwardHistory.push({
         filePath: currentFilePath,
@@ -110,7 +114,7 @@ export class NavigationState {
     const targetNode = nodeMap.get(prev.nodeId);
     if (targetNode) {
       FoldEngine.ensureVisible(targetNode, nodeMap);
-      const updatedVisible = FoldEngine.getVisibleNodes(rootNodes);
+      const updatedVisible = this.getVisibleNodes(rootNodes);
       const targetIdx = updatedVisible.findIndex((n) => n.id === targetNode.id);
       if (targetIdx !== -1) {
         this.selectedIndex = targetIdx;
@@ -119,7 +123,7 @@ export class NavigationState {
     }
 
     // Fallback to previous index
-    const updatedVisible = FoldEngine.getVisibleNodes(rootNodes);
+    const updatedVisible = this.getVisibleNodes(rootNodes);
     this.selectedIndex = Math.max(0, Math.min(prev.index, updatedVisible.length - 1));
     return true;
   }
@@ -132,7 +136,7 @@ export class NavigationState {
     const next = this.jumpForwardHistory.pop();
     if (!next) return false;
 
-    const currentNode = this.getSelectedNode(FoldEngine.getVisibleNodes(rootNodes));
+    const currentNode = this.getSelectedNode(this.getVisibleNodes(rootNodes));
     if (currentNode) {
       this.jumpHistory.push({
         filePath: currentFilePath,
@@ -144,7 +148,7 @@ export class NavigationState {
     const targetNode = nodeMap.get(next.nodeId);
     if (targetNode) {
       FoldEngine.ensureVisible(targetNode, nodeMap);
-      const updatedVisible = FoldEngine.getVisibleNodes(rootNodes);
+      const updatedVisible = this.getVisibleNodes(rootNodes);
       const targetIdx = updatedVisible.findIndex((n) => n.id === targetNode.id);
       if (targetIdx !== -1) {
         this.selectedIndex = targetIdx;
@@ -152,7 +156,7 @@ export class NavigationState {
       }
     }
 
-    const updatedVisible = FoldEngine.getVisibleNodes(rootNodes);
+    const updatedVisible = this.getVisibleNodes(rootNodes);
     this.selectedIndex = Math.max(0, Math.min(next.index, updatedVisible.length - 1));
     return true;
   }
@@ -164,13 +168,16 @@ export class NavigationState {
     const current = this.getSelectedNode(visibleNodes);
     if (!current || !current.parentId) return false;
 
-    const parent = nodeMap.get(current.parentId);
-    if (!parent) return false;
-
-    const idx = visibleNodes.findIndex((n) => n.id === parent.id);
-    if (idx !== -1) {
-      this.selectedIndex = idx;
-      return true;
+    let parentId: string | null = current.parentId;
+    while (parentId) {
+      const parent = nodeMap.get(parentId);
+      if (!parent) break;
+      const idx = visibleNodes.findIndex((n) => n.id === parent.id);
+      if (idx !== -1) {
+        this.selectedIndex = idx;
+        return true;
+      }
+      parentId = parent.parentId;
     }
     return false;
   }
@@ -179,13 +186,17 @@ export class NavigationState {
     const current = this.getSelectedNode(visibleNodes);
     if (!current || current.children.length === 0 || current.isFolded) return false;
 
-    const firstChild = current.children[0];
-    if (!firstChild) return false;
-
-    const idx = visibleNodes.findIndex((n) => n.id === firstChild.id);
-    if (idx !== -1) {
-      this.selectedIndex = idx;
-      return true;
+    const next = visibleNodes[this.selectedIndex + 1];
+    if (next) {
+      const pending = [...current.children];
+      while (pending.length) {
+        const child = pending.pop()!;
+        if (child.id === next.id) {
+          this.selectedIndex++;
+          return true;
+        }
+        pending.push(...child.children);
+      }
     }
     return false;
   }

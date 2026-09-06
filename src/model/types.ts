@@ -57,6 +57,10 @@ export interface TreeNode {
   definitionLine?: number;
   isExternal?: boolean;
   sourceFileSnippet?: string;
+  sourceFilePath?: string;
+  expandChildren?: () => void;
+  expansionNote?: string;
+  isTrivialCall?: boolean;
 }
 
 export interface ImportedSymbol {

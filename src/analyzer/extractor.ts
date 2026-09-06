@@ -297,7 +297,7 @@ export class AstExtractor {
           nodes.push(...callNodes);
         } else {
           const target = this.getCallTarget(init.callee);
-          if (target.startsWith("Layer.") || varName.endsWith("Live") || varName.endsWith("Layer")) {
+          if (target.startsWith("Layer.") || varName?.endsWith("Live") || varName?.endsWith("Layer")) {
             const callNodes = this.extractCallExpression(
               init,
               depth,
@@ -727,6 +727,13 @@ export class AstExtractor {
       return this.extractNewExpression(expr, depth, parentId);
     }
 
+    if (expr.type === "ArrayExpression" || expr.type === "SequenceExpression" || expr.type === "TemplateLiteral") {
+      return (expr.elements || expr.expressions || []).flatMap((item: any) => this.extractFromExpression(item, depth, parentId));
+    }
+    if (["UnaryExpression", "SpreadElement", "TSAsExpression", "TSNonNullExpression", "TSTypeAssertion", "ChainExpression"].includes(expr.type)) {
+      return this.extractFromExpression(expr.argument || expr.expression, depth, parentId);
+    }
+
     // Assignment or Logical
     if (expr.type === "AssignmentExpression") {
       return this.extractFromExpression(expr.right, depth, parentId);
@@ -782,8 +789,13 @@ export class AstExtractor {
               }
             }
             propNodes.push(methodNode);
+          } else {
+            propNodes.push(...this.extractFromExpression(val, depth, parentId));
           }
         }
+      }
+      for (const prop of expr.properties) {
+        if (prop.type === "SpreadElement") propNodes.push(...this.extractFromExpression(prop.argument, depth, parentId));
       }
       return propNodes;
     }
@@ -890,6 +902,8 @@ export class AstExtractor {
     ) {
       const innerCalls = this.extractCallExpression(callee.object, depth + 1, callNode.id, false, false);
       callNode.children.push(...innerCalls);
+    } else if (callee?.type === "MemberExpression" && !isInnerExtracted) {
+      callNode.children.push(...this.extractFromExpression(callee.object, depth + 1, callNode.id));
     }
 
     // Special handling for Layer / Provide methods:
@@ -940,7 +954,7 @@ export class AstExtractor {
         } else if (arg.type === "NewExpression") {
           const nested = this.extractNewExpression(arg, depth + 1, callNode.id);
           callNode.children.push(...nested);
-        } else if (arg.type === "ObjectExpression") {
+        } else {
           const nested = this.extractFromExpression(arg, depth + 1, callNode.id);
           callNode.children.push(...nested);
         }
