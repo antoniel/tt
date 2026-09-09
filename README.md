@@ -213,11 +213,12 @@ navigation remain intact. Press `zt` to show every call or restore the filter.
 
 ### Open source in your editor
 
-**Ctrl + left click** on a tree row opens its resolved function declaration in
-VS Code. Other code rows open at their own source line, including bodies expanded
+**`e` on the selected row, or Ctrl + left click** on a tree row opens its resolved function declaration in
+Cursor. Other code rows open at their own source line, including bodies expanded
 from another file. Scrolling and trivial-call filtering are taken into account.
 
-The `code` command must be on your PATH. For Cursor, launch with
-`TT_EDITOR=cursor tt path/to/file.ts`. `TT_EDITOR` accepts an executable name or
+The `cursor` command must be on your PATH. For VS Code, launch with
+`TT_EDITOR=code tt path/to/file.ts`. `TT_EDITOR` accepts an executable name or
 path for an editor supporting `--goto file:line:column` (no shell arguments).
-The terminal must forward Ctrl+mouse events to the application.
+If Ctrl+click is intercepted by the terminal, press `e` to open the selected row
+directly through the editor CLI.

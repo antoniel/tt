@@ -96,6 +96,7 @@ export class TuiApp {
       treeBox.title = `${boxTitlePrefix}[${snapshot.relativeFilePath || "."}]${hintStr} `;
 
       headerText.content = renderHeader(snapshot, width);
+      if (renderer.isDestroyed) return;
       treeText.content = renderTreeView(snapshot, treeWidth, bodyHeight);
       renderedSnapshot = snapshot;
       renderedHeight = bodyHeight;
@@ -104,27 +105,30 @@ export class TuiApp {
       renderer.requestRender();
     };
 
+    const openNode = async (snapshot: TreeStateSnapshot, node: import("../model/types.js").TreeNode) => {
+      if (openingEditor) return;
+      openingEditor = true;
+      try {
+        const location = await getEditorLocation(snapshot.analysis, node);
+        if (!location) return;
+        await openSourceInEditor(location);
+        await Effect.runPromise(this.treeState.setStatusMessage(`Editor: ${location.filePath}:${location.line}`));
+      } catch (error) {
+        await Effect.runPromise(this.treeState.setStatusMessage(`Não foi possível abrir o editor: ${error instanceof Error ? error.message : String(error)}. Verifique o comando cursor no PATH ou configure TT_EDITOR=code.`));
+      } finally {
+        openingEditor = false;
+        if (!renderer.isDestroyed) await updateUI();
+      }
+    };
+
     treeText.onMouseDown = (event) => {
-      if (!event.modifiers.ctrl || event.button !== 0 || openingEditor || !renderedSnapshot) return;
+      if (!event.modifiers.ctrl || event.button !== 0 || !renderedSnapshot) return;
       const snapshot = renderedSnapshot;
       const node = treeNodeAtRow(snapshot.visibleNodes, snapshot.selectedIndex, renderedHeight, event.y - treeText.y);
       if (!node) return;
       event.preventDefault();
       event.stopPropagation();
-      openingEditor = true;
-      void (async () => {
-        try {
-          const location = await getEditorLocation(snapshot.analysis, node);
-          if (!location) return;
-          await openSourceInEditor(location);
-          await Effect.runPromise(this.treeState.setStatusMessage(`Editor: ${location.filePath}:${location.line}`));
-        } catch (error) {
-          await Effect.runPromise(this.treeState.setStatusMessage(`Não foi possível abrir o editor: ${error instanceof Error ? error.message : String(error)}. Configure TT_EDITOR=code ou TT_EDITOR=cursor.`));
-        } finally {
-          openingEditor = false;
-          if (!renderer.isDestroyed) await updateUI();
-        }
-      })();
+      void openNode(snapshot, node);
     };
 
     // Initial render
@@ -144,6 +148,11 @@ export class TuiApp {
 
       renderer.keyInput.on("keypress", async (key) => {
         const action = this.keyHandler.handleKeyEvent(key);
+        if (action === "openEditor") {
+          const snapshot = await Effect.runPromise(this.treeState.getSnapshot());
+          if (snapshot.selectedNode) await openNode(snapshot, snapshot.selectedNode);
+          return;
+        }
         if (action === "quit") {
           exitApp();
           return;

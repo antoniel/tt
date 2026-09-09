@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import type { AnalysisResult, TreeNode } from "../model/types.js";
 import { parseAndAnalyzeSource } from "../analyzer/parser.js";
 
@@ -36,7 +36,7 @@ export async function getEditorLocation(analysis: AnalysisResult, node: TreeNode
   return target ? { filePath: targetPath, line: target.location.startLine, column: target.location.startCol } : occurrence;
 }
 
-export function editorCommand(location: EditorLocation, executable = process.env.TT_EDITOR || "code"): string[] {
+export function editorCommand(location: EditorLocation, executable = process.env.TT_EDITOR || "cursor"): string[] {
   return [executable, "--goto", `${resolve(location.filePath)}:${location.line}:${location.column}`];
 }
 
@@ -45,4 +45,13 @@ export async function openSourceInEditor(location: EditorLocation): Promise<void
   const child = Bun.spawn(command, { stdin: "ignore", stdout: "ignore", stderr: "pipe" });
   const [exitCode, error] = await Promise.all([child.exited, new Response(child.stderr).text()]);
   if (exitCode !== 0) throw new Error(error.trim() || `Editor terminou com código ${exitCode}`);
+}
+
+/** OSC 8 targets let the terminal open the file instead of searching the label. */
+export function editorLink(location: EditorLocation, executable = process.env.TT_EDITOR || "cursor"): string | undefined {
+  const name = basename(executable).replace(/\.cmd$/, "");
+  const scheme = name === "cursor" ? "cursor" : name === "code" ? "vscode" : name === "code-insiders" ? "vscode-insiders" : undefined;
+  if (!scheme) return undefined;
+  const path = resolve(location.filePath).split("/").map(encodeURIComponent).join("/");
+  return `${scheme}://file${path}:${location.line}:${location.column}`;
 }

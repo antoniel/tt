@@ -66,7 +66,7 @@ export function renderStatusBar(
         sep(),
         chunk("zo/zc: Fold", { fg: "#6c7086" }),
         sep(),
-        chunk("Ctrl+clique: Editor", { fg: "#89dceb" }),
+        chunk("e / Ctrl+clique: Editor", { fg: "#89dceb" }),
         sep(),
         chunk("gd: Go to Def", { fg: "#a6e3a1" }),
         sep(),

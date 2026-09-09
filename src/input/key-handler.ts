@@ -10,6 +10,7 @@ export type KeyAction =
   | "handleH"
   | "handleL"
   | "openFile"
+  | "openEditor"
   | "openFold"
   | "openFoldRecursively"
   | "closeFold"
@@ -129,6 +130,8 @@ export class KeyHandlerState {
       this.setChord("z");
       return "none";
     }
+
+    if (!ctrl && !shift && !key.meta && name === "e") return "openEditor";
 
     // Single keys navigation
     if (!ctrl && !shift && (name === "j" || name === "down")) {

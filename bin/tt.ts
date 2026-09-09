@@ -26,7 +26,7 @@ if (firstArg === "--help" || firstArg === "-h") {
   zM / C-S-Q     Fecha todas as dobras recursivamente
   zR / C-S-"     Abre todas as dobras recursivamente
   z1 / z2 / z3   Fecha todas as dobras do nível 1 / 2 / 3
-  Ctrl+clique    Abre a declaração/linha no editor (TT_EDITOR=code ou cursor)
+  e / Ctrl+clique Abre a declaração/linha no editor (Cursor por padrão; TT_EDITOR=code para VS Code)
   gd             Go to Definition (salta para declaração da função/serviço)
   Ctrl-O         Volta no histórico de saltos (Jump back / volta pro Explorer)
   Ctrl-I         Avança no histórico de saltos (Jump forward)

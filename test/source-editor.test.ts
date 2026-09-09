@@ -46,3 +46,30 @@ test("editor arguments preserve paths with spaces and shell metacharacters liter
   expect(editorCommand({ filePath: '/tmp/my project/$(touch bad).ts', line: 12, column: 4 }, "cursor"))
     .toEqual(["cursor", "--goto", "/tmp/my project/$(touch bad).ts:12:4"]);
 });
+
+test("native links use absolute paths outside the launch directory and encode special characters", async () => {
+  const { editorLink } = await import("../src/services/SourceEditor.js");
+  const filePath = resolve("../another project/a #?.ts");
+  expect(editorLink({ filePath, line: 100, column: 1 }, "cursor"))
+    .toBe(`cursor://file${filePath.split('/').map(encodeURIComponent).join('/')}:100:1`);
+  expect(editorLink({ filePath, line: 100, column: 1 }, "code")).toStartWith("vscode://file/");
+});
+
+test("tree rows render without terminal hyperlinks or underline decoration", async () => {
+  const { TextAttributes } = await import("@opentui/core");
+  const { renderTreeView } = await import("../src/tui/components/TreeView.js");
+  const { TreeState, TreeStateLive } = await import("../src/services/TreeState.js");
+  const { Effect } = await import("effect");
+  await Effect.runPromise(Effect.gen(function* () {
+    const state = yield* TreeState;
+    const a = parseAndAnalyzeSource("../other-project/index.ts", "function tailwindVariants() {}");
+    yield* state.init(a);
+    const snapshot = yield* state.getSnapshot();
+    const output = renderTreeView(snapshot, 100, 10);
+    expect(output.chunks.some(c => c.text.includes("tailwindVariants"))).toBe(true);
+    for (const part of output.chunks) {
+      expect(part.link).toBeUndefined();
+      expect((part.attributes ?? 0) & TextAttributes.UNDERLINE).toBe(0);
+    }
+  }).pipe(Effect.provide(TreeStateLive)));
+});
